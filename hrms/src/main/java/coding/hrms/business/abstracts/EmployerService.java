@@ -1,12 +1,16 @@
 package coding.hrms.business.abstracts;
 
-import coding.hrms.core.business.BaseService;
+import java.util.List;
+
+import coding.hrms.core.utilities.results.DataResult;
 import coding.hrms.core.utilities.results.Result;
 import coding.hrms.entities.concretes.Employer;
-import coding.hrms.entities.dtos.EmployerForRegisterDto;
+import coding.hrms.entities.dtos.EmployerSaveDto;
 
-public interface EmployerService extends BaseService<Employer> {
-	Result isNotCorporateEmailExist(final String corporateEmail);
+public interface EmployerService {
+    DataResult<List<Employer>> getAll();
+    DataResult<Employer> getById(int id);
+    DataResult<Employer> getByEmail(String email);
 
-	Result register(EmployerForRegisterDto employerForRegister);
+    Result save(EmployerSaveDto employer);
 }

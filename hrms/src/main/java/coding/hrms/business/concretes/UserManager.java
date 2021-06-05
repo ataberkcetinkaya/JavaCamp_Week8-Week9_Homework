@@ -1,83 +1,72 @@
 package coding.hrms.business.concretes;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import coding.hrms.business.abstracts.UserService;
-import coding.hrms.business.constants.Messages;
+import coding.hrms.business.constants.MessageResults;
 import coding.hrms.core.utilities.results.DataResult;
-import coding.hrms.core.utilities.results.ErrorDataResult;
 import coding.hrms.core.utilities.results.ErrorResult;
 import coding.hrms.core.utilities.results.Result;
 import coding.hrms.core.utilities.results.SuccessDataResult;
 import coding.hrms.core.utilities.results.SuccessResult;
+import coding.hrms.core.utilities.tools.StringTools;
 import coding.hrms.dataAccess.abstracts.UserDao;
 import coding.hrms.entities.concretes.User;
 
 @Service
 public class UserManager implements UserService {
-	private final UserDao userDao;
+    private final UserDao userDao;
+    private final String FIELD = "user";
 
-	@Autowired
-	public UserManager(final UserDao userDao) {
-		this.userDao = userDao;
-	}
+    @Autowired
+    public UserManager(UserDao userDao){
+        this.userDao = userDao;
+    }
 
-	@Override
-	public Result add(final User user) {
-		userDao.save(user);
+    public DataResult<List<User>> getAll() {
+        return new SuccessDataResult<List<User>>(this.userDao.findAll(), MessageResults.allDataListed(FIELD));
+    }
 
-		return new SuccessResult(Messages.userAdded);
-	}
+    public DataResult<User> getById(int id) {
+        return new SuccessDataResult<User>(this.userDao.findById(id).get(), MessageResults.dataListed(FIELD));
+    }
 
-	@Override
-	public Result delete(final User user) {
-		userDao.delete(user);
+    public DataResult<User> getByEmail(String email) {
+        return new SuccessDataResult<User>(this.userDao.getByEmail(email), MessageResults.dataListed(FIELD));
+    }
 
-		return new SuccessResult(Messages.userDeleted);
-	}
+    public Result save(User user) {
+        if(StringTools.isStringNullOrEmpty(user.getEmail()) ||
+                StringTools.isStringNullOrEmpty(user.getPassword())){
+            return new ErrorResult(MessageResults.emptyField);
+        }
 
-	@Override
-	public DataResult<List<User>> getAll() {
-		final List<User> users = userDao.findAll();
+        this.userDao.save(user);
+        return new SuccessResult(MessageResults.saved(FIELD));
+    }
 
-		return new SuccessDataResult<List<User>>(users);
-	}
+    public Result verifyById(int id) {
+        User user = getById(id).getData();
+        if(user == null){
+            return new ErrorResult(MessageResults.verificationSuccessFalse);
+        }
 
-	@Override
-	public DataResult<User> getByEmail(final String email) {
-		final Optional<User> user = userDao.findByEmail(email);
+        user.setVerified(true);
+        this.userDao.save(user);
+        return new SuccessResult(MessageResults.verificationSuccessTrue);
+    }
 
-		if (user.isEmpty())
-			return new ErrorDataResult<User>(Messages.userNotFound);
+    public Result verifyByEmail(String email) {
+        User user = getByEmail(email).getData();
+        if(user == null){
+            return new ErrorResult(MessageResults.verificationSuccessFalse);
+        }
 
-		return new SuccessDataResult<User>(user.get());
-	}
-
-	@Override
-	public DataResult<User> getById(final int id) {
-		final Optional<User> user = userDao.findById(id);
-
-		if (user.isEmpty())
-			new ErrorDataResult<User>(Messages.userNotFound);
-
-		return new SuccessDataResult<User>(user.get());
-	}
-
-	@Override
-	public Result isNotEmailExist(final String email) {
-		return userDao.findByEmail(email).isEmpty() ? new SuccessResult()
-				: new ErrorResult(Messages.userWithMailAlreadyExits);
-	}
-
-	@Override
-	public Result update(final User user) {
-		userDao.save(user);
-
-		return new SuccessResult(Messages.userUpdated);
-	}
-
+        user.setVerified(true);
+        this.userDao.save(user);
+        return new SuccessResult(MessageResults.verificationSuccessTrue);
+    }
 }

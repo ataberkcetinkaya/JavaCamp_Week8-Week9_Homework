@@ -1,23 +1,18 @@
 package coding.hrms.core.utilities.results;
 
-public class Result {
-	private final boolean success;
-	private String message;
+import lombok.Data;
 
-	public Result(final boolean success) {
-		this.success = success;
-	}
+@Data
+public class Result{
+    private boolean success;
+    private String message;
 
-	public Result(final boolean success, final String message) {
-		this(success);
-		this.message = message;
-	}
+    public Result(boolean success){
+        this.success = success;
+    }
 
-	public String getMessage() {
-		return message;
-	}
-
-	public boolean isSuccess() {
-		return success;
-	}
+    public Result(boolean success, String message){
+        this(success);
+        this.message = message;
+    }
 }

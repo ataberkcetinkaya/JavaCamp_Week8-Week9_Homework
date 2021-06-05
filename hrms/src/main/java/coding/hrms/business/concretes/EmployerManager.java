@@ -1,118 +1,93 @@
 package coding.hrms.business.concretes;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import coding.hrms.business.abstracts.CompanyStaffVerificationService;
-import coding.hrms.business.abstracts.EmailActivationService;
 import coding.hrms.business.abstracts.EmployerService;
 import coding.hrms.business.abstracts.UserService;
-import coding.hrms.business.constants.Messages;
-import coding.hrms.core.utilities.business.BusinessRules;
+import coding.hrms.business.constants.MessageResults;
+import coding.hrms.core.utilities.helpers.EmailService;
 import coding.hrms.core.utilities.results.DataResult;
-import coding.hrms.core.utilities.results.ErrorDataResult;
 import coding.hrms.core.utilities.results.ErrorResult;
 import coding.hrms.core.utilities.results.Result;
 import coding.hrms.core.utilities.results.SuccessDataResult;
 import coding.hrms.core.utilities.results.SuccessResult;
+import coding.hrms.core.utilities.tools.StringTools;
 import coding.hrms.dataAccess.abstracts.EmployerDao;
-import coding.hrms.entities.concretes.CompanyStaffVerification;
 import coding.hrms.entities.concretes.Employer;
-import coding.hrms.entities.dtos.EmployerForRegisterDto;
+import coding.hrms.entities.concretes.User;
+import coding.hrms.entities.dtos.EmployerSaveDto;
 
 @Service
 public class EmployerManager implements EmployerService {
-	private final EmployerDao employerDao;
-	private final UserService userService;
-	private final EmailActivationService emailActivationService;
-	private final CompanyStaffVerificationService companyStaffVerificationService;
+    private final EmployerDao employerDao;
+    private final UserService userService;
+    private final EmailService emailService;
+    private final String FIELD = "employer";
 
-	@Autowired
-	public EmployerManager(final EmployerDao employerDao, final UserService userService,
-			final EmailActivationService emailActivationService,
-			final CompanyStaffVerificationService companyStaffVerificationService) {
-		this.employerDao = employerDao;
-		this.userService = userService;
-		this.emailActivationService = emailActivationService;
-		this.companyStaffVerificationService = companyStaffVerificationService;
-	}
+    @Autowired
+    public EmployerManager(EmployerDao employerDao, UserService userService, EmailService emailService){
+        super();
+        this.employerDao = employerDao;
+        this.userService = userService;
+        this.emailService = emailService;
+    }
 
-	@Override
-	public Result add(final Employer employer) {
-		employerDao.save(employer);
-		return new SuccessResult(Messages.employerAdded);
-	}
+    public DataResult<List<Employer>> getAll() {
+        return new SuccessDataResult<List<Employer>>(this.employerDao.findAll(), MessageResults.allDataListed(FIELD));
+    }
 
-	private Result arePasswordMatch(final String password, final String confirmPassword) {
-		return password.equals(confirmPassword) ? new SuccessResult() : new ErrorResult(Messages.passwordsNotMatch);
-	}
+    public DataResult<Employer> getById(int id) {
+        return new SuccessDataResult<Employer>(this.employerDao.findById(id).get(), MessageResults.dataListed(FIELD));
+    }
 
-	@Override
-	public Result delete(final Employer employer) {
-		employerDao.delete(employer);
-		return new SuccessResult(Messages.employerDeleted);
-	}
+    public DataResult<Employer> getByEmail(String email) {
+        return new SuccessDataResult<Employer>(this.employerDao.getByUser_Email(email), MessageResults.dataListed(FIELD));
+    }
 
-	@Override
-	public DataResult<List<Employer>> getAll() {
-		final List<Employer> employers = employerDao.findAll();
-		return new SuccessDataResult<List<Employer>>(employers);
-	}
+    public Result save(EmployerSaveDto employer) {
+        if(StringTools.isStringNullOrEmpty(employer.getCompanyName()) ||
+                StringTools.isStringNullOrEmpty(employer.getWebsite()) ||
+                StringTools.isStringNullOrEmpty(employer.getPhone()) ||
+                StringTools.isStringNullOrEmpty(employer.getEmail()) ||
+                StringTools.isStringNullOrEmpty(employer.getPassword()) ||
+                StringTools.isStringNullOrEmpty(employer.getPasswordRetry())){
+            return new ErrorResult(MessageResults.emptyFields);
+        }
 
-	@Override
-	public DataResult<Employer> getById(final int id) {
-		final Optional<Employer> employer = employerDao.findById(id);
 
-		if (employer.isEmpty())
-			return new ErrorDataResult<Employer>(Messages.employerNotFound);
+        if(!employer.getPassword().equals(employer.getPasswordRetry())){
+            return new ErrorResult(MessageResults.passwordMatchFalse);
+        }
 
-		return new SuccessDataResult<Employer>(employer.get());
-	}
+        boolean checkEmail = emailService.checkWithDomain(employer.getEmail(), employer.getWebsite()).isSuccess();
+        if(!checkEmail){
+            return new ErrorResult(MessageResults.isEmailFormatFalse);
+        }
 
-	private Result isCorporateEmail(final String email, final String website) {
-		return email.split("@")[1].equals(website) ? new SuccessResult() : new ErrorResult(Messages.emailNotCorporate);
-	}
+       Employer byEmail = getByEmail(employer.getEmail()).getData();
 
-	@Override
-	public Result isNotCorporateEmailExist(final String corporateEmail) {
-		return employerDao.findByCorporateEmail(corporateEmail).isEmpty() ? new SuccessResult()
-				: new ErrorResult(Messages.employerWithCorporateEmailAlreadyExits);
-	}
+        if(byEmail != null){
+            return new ErrorResult(MessageResults.alreadyExists("email"));
+        }
 
-	@Override
-	public Result register(final EmployerForRegisterDto employerForRegister) {
-		final Result businessRulesResult = BusinessRules.run(
-				userService.isNotEmailExist(employerForRegister.getEmail()),
-				isNotCorporateEmailExist(employerForRegister.getCorporateEmail()),
-				arePasswordMatch(employerForRegister.getPassword(), employerForRegister.getConfirmPassword()),
-				isCorporateEmail(employerForRegister.getCorporateEmail(), employerForRegister.getWebsite()));
-		if (!businessRulesResult.isSuccess())
-			return businessRulesResult;
+        User user = new User(
+                employer.getEmail(),
+                employer.getPassword(),
+                false
+        );
+        userService.save(user);
 
-		final Employer employer = Employer.childBuilder()
-				.email(employerForRegister.getEmail())
-				.password(employerForRegister.getPassword())
-				.companyName(employerForRegister.getCompanyName())
-				.website(employerForRegister.getWebsite())
-				.corporateEmail(employerForRegister.getCorporateEmail())
-				.phone(employerForRegister.getPhone())
-				.build();
-		add(employer);
-
-		emailActivationService
-				.createAndSendActivationCodeByMail(employer, employer.getEmail(), employer.getCorporateEmail());
-		companyStaffVerificationService.add(CompanyStaffVerification.builder().user(employer).build());
-
-		return new SuccessResult(Messages.employerRegistered);
-	}
-
-	@Override
-	public Result update(final Employer employer) {
-		employerDao.save(employer);
-		return new SuccessResult(Messages.employerUpdated);
-	}
-
+        Employer employerObject = new Employer(
+                user.getId(),
+                employer.getCompanyName(),
+                employer.getWebsite(),
+                employer.getPhone(),
+                false
+        );
+        this.employerDao.save(employerObject);
+        return new SuccessResult(MessageResults.saved(FIELD, MessageResults.validateEmailBySystem));
+    }
 }
